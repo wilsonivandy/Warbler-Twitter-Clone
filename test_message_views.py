@@ -26,6 +26,7 @@ from app import app, CURR_USER_KEY
 # once for all tests --- in each test, we'll delete the data
 # and create fresh new clean test data
 
+db.drop_all()
 db.create_all()
 
 # Don't have WTForms use CSRF at all, since it's a pain to test
@@ -71,3 +72,41 @@ class MessageViewTestCase(TestCase):
 
             msg = Message.query.one()
             self.assertEqual(msg.text, "Hello")
+
+    def test_show_message(self):
+        """Can show a message?"""
+
+        with self.client as c:
+            with c.session_transaction() as sess:
+                sess[CURR_USER_KEY] = self.testuser.id
+
+            # Now, that session setting is saved, so we can have
+            # the rest of ours test
+
+            resp = c.post("/messages/new", data={"text": "Hello"})
+            msg = Message.query.one()
+            html = c.get(f'/messages/{msg.id}')
+
+            # Make sure it redirects
+            self.assertEqual(resp.status_code, 302)
+            self.assertIn(b"Hello", html.data)
+
+
+    def test_delete_message(self):
+        """Can delete a message?"""
+
+        with self.client as c:
+            with c.session_transaction() as sess:
+                sess[CURR_USER_KEY] = self.testuser.id
+
+            # Now, that session setting is saved, so we can have
+            # the rest of ours test
+
+            resp = c.post("/messages/new", data={"text": "Hello"})
+            msg = Message.query.one()
+
+            db.session.delete(msg)
+            db.session.commit()
+
+            # Make sure it redirects
+            self.assertEqual(Message.query.get(msg.id), None)
